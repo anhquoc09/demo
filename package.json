@@ -8,5 +8,9 @@
   "dependencies": {
     "react": "17.0.1",
     "react-native": "^0.64.0"
+  },
+  "devDependencies": {
+    "metro": "^0.65.2",
+    "metro-core": "^0.65.2"
   }
 }
