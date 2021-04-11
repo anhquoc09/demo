@@ -6,98 +6,143 @@ The keys to integrating React Native components into your Android application ar
 
 ### [Step 1. Set up project directory structure and React Native dependencies.](https://github.com/anhquoc09/demo/tree/step1#step-1-set-up-project-directory-structure-and-react-native-dependencies)
 
-1.1. Directory structure: Copy existing Android app to subfolder ```/android``` of React Native project.<br>
+### [Step 2. Integrate a React Native app to Android app.](https://github.com/anhquoc09/demo/tree/step2#step-2-integrate-a-react-native-app-to-android-app)
 
-1.2. Install JavaScript dependencies:
+2.1 Create ```index.js``` file in root directory and create React Native component:
 
-- Create new ```package.json``` file in root directory of React Native project with content:
+```js
+import React from 'react';
+import {
+  AppRegistry,
+  StyleSheet,
+  Text,
+  View
+} from 'react-native';
 
-```json
-{
-  "name": "MyReactNativeApp",
-  "version": "0.0.1",
-  "private": true,
-  "scripts": {
-    "start": "yarn react-native start"
+class HelloWorld extends React.Component {
+  render() {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.hello}>Hello, World</Text>
+      </View>
+    );
   }
 }
+var styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center'
+  },
+  hello: {
+    fontSize: 20,
+    textAlign: 'center',
+    margin: 10
+  }
+});
+
+AppRegistry.registerComponent(
+  'MyReactNativeApp',
+  () => HelloWorld
+);
 ```
 
-- Install ```yarn```
+2.2 Create React Native host in Android app:
 
-```shell
-npm install --global yarn
-```
+- Create ```ReactRootView```  and ```ReactInstanceManager``` to launch React Native app:
+```java
+public class MyReactActivity extends Activity implements DefaultHardwareBackBtnHandler {
+    private ReactRootView mReactRootView;
+    private ReactInstanceManager mReactInstanceManager;
 
-- Navigate to the directory with your ```package.json``` file and run command:
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        SoLoader.init(this, false);
 
-Install ```react-native```
+        mReactRootView = new ReactRootView(this);
+        List<ReactPackage> packages = new PackageList(getApplication()).getPackages();
+        // Packages that cannot be autolinked yet can be added manually here, for example:
+        // packages.add(new MyReactNativePackage());
+        // Remember to include them in `settings.gradle` and `app/build.gradle` too.
 
-```shell
-yarn add react-native
-```
+        mReactInstanceManager = ReactInstanceManager.builder()
+                .setApplication(getApplication())
+                .setCurrentActivity(this)
+                .setBundleAssetName("index.android.bundle")
+                .setJSMainModulePath("index")
+                .addPackages(packages)
+                .setUseDeveloperSupport(BuildConfig.DEBUG)
+                .setInitialLifecycleState(LifecycleState.RESUMED)
+                .build();
+        // The string here (e.g. "MyReactNativeApp") has to match
+        // the string in AppRegistry.registerComponent() in index.js
+        mReactRootView.startReactApplication(mReactInstanceManager, "MyReactNativeApp", null);
 
-Will see message like the following:
+        setContentView(mReactRootView);
+    }
 
-```
-warning "react-native@0.52.2" has unmet peer dependency "react@16.2.0".
-```
-
-Then install ```react```
-
-```shell
-yarn add react@{version_print_above}
-```
-
-1.3. Adding React Native to Android app
-
-- Configuration Maven: Add the React Native and JSC dependency to app's ```build.gradle```:
-
-```groovy
-dependencies {
-    implementation "com.facebook.react:react-native:+" // From node_modules
-    implementation "org.webkit:android-jsc:+"
-}
-```
-
-- Add an entry for the local React Native and JSC maven directories to the top-level ```build.gradle```:
-
-```groovy
-allprojects {
-    repositories {
-        maven {
-            // All of React Native (JS, Android binaries) is installed from npm
-            url "$rootDir/../node_modules/react-native/android"
-        }
-        maven {
-            // Android JSC is installed from npm
-            url("$rootDir/../node_modules/jsc-android/dist")
-        }
+    @Override
+    public void invokeDefaultOnBackPressed() {
+        super.onBackPressed();
     }
 }
 ```
 
-- Enable native module autolinking:
-
-Add the following to ```settings.gradle```:
-
-```groovy
-apply from: file("../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesSettingsGradle(settings)
-```
-
-Next add the following entry at the very bottom of the ```app/build.gradle```:
-
-```groovy
-apply from: file("../../node_modules/@react-native-community/cli-platform-android/native_modules.gradle"); applyNativeModulesAppBuildGradle(project)
-```
-
-- Configuring permissions: Make sure you have the Internet permission in ```AndroidManifest.xml```:
-
+- Add to ```AndroidManifest.xml```:
 ```xml
-<uses-permission android:name="android.permission.INTERNET"/>
+<activity
+  android:name=".MyReactActivity"
+  android:label="@string/app_name"
+  android:theme="@style/Theme.AppCompat.Light.NoActionBar">
+</activity>
 ```
 
-### [Step 2. Integrate a React Native app to Android app.](https://github.com/anhquoc09/demo/tree/step2#step-2-integrate-a-react-native-app-to-android-app)
+- Manage lifecycle:
+```java
+
+@Override
+protected void onPause() {
+    super.onPause();
+
+    if (mReactInstanceManager != null) {
+        mReactInstanceManager.onHostPause(this);
+    }
+}
+
+@Override
+protected void onResume() {
+    super.onResume();
+
+    if (mReactInstanceManager != null) {
+        mReactInstanceManager.onHostResume(this, this);
+    }
+}
+
+@Override
+protected void onDestroy() {
+    super.onDestroy();
+
+    if (mReactInstanceManager != null) {
+        mReactInstanceManager.onHostDestroy(this);
+    }
+    if (mReactRootView != null) {
+        mReactRootView.unmountReactApplication();
+    }
+}
+
+```
+
+- Handle back press:
+```java
+@Override
+ public void onBackPressed() {
+    if (mReactInstanceManager != null) {
+        mReactInstanceManager.onBackPressed();
+    } else {
+        super.onBackPressed();
+    }
+}
+```
 
 ### [Step 3. Run app and test the integration.](https://github.com/anhquoc09/demo/tree/step3#step-3-run-app-and-test-the-integration)
 
